@@ -31,11 +31,10 @@ AS SELECT
        cc.warc_filename      AS warc_filename,
        cc.warc_record_offset AS warc_record_offset,
        cc.warc_record_length AS warc_record_length,
-       cc.fetch_redirect     AS fetch_redirect,
        cc.content_mime_detected AS content_mime_detected,
        cc.content_languages  AS content_languages,
        cc.subset             AS subset
-FROM ccindex.ccindex AS cc
+FROM olmccindex.ccindex AS cc
   RIGHT OUTER JOIN {db}.{seed_table} AS {tid}
   ON cc.url_host_registered_domain = {tid}.url_host_registered_domain
      AND strpos(cc.url_surtkey, {tid}.url_surtkey) = 1
@@ -47,7 +46,7 @@ drop_tmp_table = "DROP TABLE `{db}._tmp_overlap`;"
 # list of crawls
 # Note: in order to get a list of released crawls:
 # - query Athena
-#    SHOW PARTITIONS ccindex
+#    SHOW PARTITIONS olmccindex
 # - see
 #    https://commoncrawl.s3.amazonaws.com/crawl-data/index.html
 crawls = [
@@ -143,6 +142,9 @@ crawls = [
     "CC-MAIN-2021-43",
     "CC-MAIN-2021-49",
     #
+    "CC-MAIN-2022-05",
+    "CC-MAIN-2022-21",
+    "CC-MAIN-2022-27",
 ]
 
 
@@ -158,14 +160,14 @@ crawls = filter(lambda c: crawl_selector.match(c), crawls)
 
 
 cursor = connect(
-    s3_staging_dir="{}/staging".format(s3_location), region_name="us-east-1"
+    s3_staging_dir="{}/staging".format(s3_location), region_name="us-east-1", work_group="olm"
 ).cursor()
 
 for crawl in crawls:
     query = join_template.format(
         crawl=crawl,
         s3_location=f"{s3_location}/cc-{seed_table}",
-        db="bigscience",
+        db="olm",
         seed_table=seed_table,
         tid="bs",
     )
@@ -181,5 +183,5 @@ for crawl in crawls:
         cursor.result_set.total_execution_time_in_millis,
     )
 
-    cursor.execute(drop_tmp_table.format(db="bigscience"))
+    cursor.execute(drop_tmp_table.format(db="olm"))
     logging.info("Drop temporary table: %s", cursor.result_set.state)

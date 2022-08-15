@@ -32,7 +32,7 @@ AS SELECT
        cc.content_mime_detected AS content_mime_detected,
        cc.content_languages  AS content_languages,
        cc.subset             AS subset
-FROM ccindex.ccindex AS cc
+FROM olmccindex.ccindex AS cc
   RIGHT OUTER JOIN {db}.{url_table} AS {tid}
   ON cc.url = {tid}.url
 WHERE cc.crawl = '{crawl}'
@@ -139,6 +139,9 @@ crawls = [
     "CC-MAIN-2021-43",
     "CC-MAIN-2021-49",
     #
+    "CC-MAIN-2022-05",
+    "CC-MAIN-2022-21",
+    "CC-MAIN-2022-27",
 ]
 
 
@@ -161,7 +164,7 @@ for crawl in crawls:
     query = join_template.format(
         crawl=crawl,
         s3_location=f"{s3_location}/cc-{url_table}",
-        db="bigscience",
+        db="olm",
         url_table=url_table,
         tid="bs",
     )
@@ -177,5 +180,5 @@ for crawl in crawls:
         cursor.result_set.total_execution_time_in_millis,
     )
 
-    cursor.execute(drop_tmp_table.format(db="bigscience"))
+    cursor.execute(drop_tmp_table.format(db="olm"))
     logging.info("Drop temporary table: %s", cursor.result_set.state)

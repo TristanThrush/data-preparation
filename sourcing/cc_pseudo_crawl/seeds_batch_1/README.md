@@ -9,9 +9,9 @@ aka. "pseudo-crawls"
 
 - create AWS account in order to use [Athena](https://aws.amazon.com/athena/) to perform the lookups
 - in Athena, create database `ccindex` and table `ccindex`, see https://commoncrawl.org/2018/03/index-to-warc-files-and-urls-in-columnar-format/
-- create the database `bigscience` which holds the joined data and more
+- create the database `olm` which holds the joined data and more
   ```sql
-  CREATE DATABASE bigscience;
+  CREATE DATABASE olm;
   ```
 
 ## Looking Up URLs per Site List
@@ -30,7 +30,7 @@ For every site list
 
 3. import the seed table into Athena
   ```sql
-  CREATE EXTERNAL TABLE IF NOT EXISTS bigscience.seed (
+  CREATE EXTERNAL TABLE IF NOT EXISTS olm.seed (
            `id` int,
            `title` string,
            `link` string,
@@ -47,13 +47,13 @@ For every site list
 
 4. join the seeds table crawl by crawl with Common Crawl's index, creating a temporary table which is later used as one partition of the result table
    ```
-   python3 cc_lookup_seed.py s3://bucket/path seeds "CC-MAIN-202[01]"
+   python3 cc_lookup_seed.py s3://bucket/path seed "CC-MAIN-202[01]"
    ```
    This will run the join for all crawls of the year 2021 and put the join data into `s3://bucket/path/cc`.
 
 5. finally, create a table holding the result data in order to get further metrics or prepare the content export
   ```sql
-  CREATE EXTERNAL TABLE IF NOT EXISTS bigscience.cc_seed (
+  CREATE EXTERNAL TABLE IF NOT EXISTS olm.cc_seed (
       seed_id                     INT,
       url_surtkey                 STRING,
       url_host_tld                STRING,
@@ -72,7 +72,7 @@ For every site list
       crawl  STRING,
       subset STRING)
   STORED AS parquet
-  LOCATION 's3://bucket/path/cc/'
+  LOCATION 's3://bucket/path/cc-seed/'
   TBLPROPERTIES (
     'has_encrypted_data'='false',
     'parquet.compression'='GZIP');
@@ -80,12 +80,12 @@ For every site list
 
 6. load the partitions of the join table
    ```sql
-   MSCK REPAIR TABLE bigscience.cc_seed;
+   MSCK REPAIR TABLE olm.cc_seed;
    ```
 
 7. We want to run deduplication in terms of urls.
   ```sql
-  CREATE TABLE bigscience.cc_seed_dedup_url
+  CREATE TABLE olm.cc_seed_dedup_url
     WITH (external_location = 's3://bucket/path/cc-seed_dedup_url/',
           partitioned_by = ARRAY['subset'],
           format = 'PARQUET',
@@ -93,7 +93,7 @@ For every site list
     AS
     WITH tmp AS (
         SELECT *, row_number() over (partition by url order by fetch_time desc) row
-        FROM bigscience.cc_seed
+        FROM olm.cc_seed
     )
 
     SELECT
