@@ -158,6 +158,11 @@ crawl_selector = re.compile(sys.argv[3], re.IGNORECASE)
 
 crawls = filter(lambda c: crawl_selector.match(c), crawls)
 
+if crawls == []:
+    # If crawls is empty, we assume that crawl selector is the name of a single cc dump
+    # that has not been added to the list of known crawls.
+    crawls = [crawls_selector]
+
 
 cursor = connect(
     s3_staging_dir="{}/staging".format(s3_location), region_name="us-east-1", work_group="olm"
