@@ -1,5 +1,11 @@
-python get_latest_cc_seed_dedup_url_for_olm.py --cc-dump=CC-MAIN-2022-27 --s3-location=s3://olm-pseudo-crawl
-aws s3 cp --recursive {s3_location}/cc-{crawl}-{crawl_selector}-dedup-url/subset=warc cc-seed_dedup_url/subset=warc
+# exit when any command fails
+set -e
+
+#$1 ex: seed_2022_27
+#$2 ex: CC-MAIN-2022-27
+
+python get_latest_cc_seed_dedup_url_for_olm.py --seed-table=$1 --cc-dump=$2
+aws s3 cp --recursive s3://olm-pseudo-crawl/cc-$1_dedup_url/subset=warc cc-seed_dedup_url/subset=warc
 python ../python_scripts/download_warc.py --dataset=bigscience-catalogue-data/pseudo_crawl_seed_dedup_url --cc-index-folder=. --save_dir=datasets --num_proc=96
 python ../python_scripts/preprocess_dataset.py --dataset-path=datasets/bigscience-catalogue-data/pseudo_crawl_seed_dedup_url/ --num-proc=96 --save-path=datasets-preprocessed/bigscience-catalogue-data/ --use-datasets-caching --flavor=seed
 export HF_DATASETS_OFFLINE=1

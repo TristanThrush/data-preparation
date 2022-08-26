@@ -10,22 +10,24 @@ logging.basicConfig(
 
 parser = ArgumentParser()
 parser.add_argument("--cc-dump", type=str, required=True)
-parser.add_argument("--s3-location", type=str, required=True)
+parser.add_argument("--seed-table", type=str, required=True)
 
 args = parser.parse_args()
 
+s3_location="s3://olm-pseudo-crawl"
+
 cursor = connect(
-    s3_staging_dir="{}/staging".format(args.s3_location), region_name="us-east-1", work_group="olm"
+    s3_staging_dir="{}/staging".format(s3_location), region_name="us-east-1", work_group="olm"
 ).cursor()
 
-update_cc_index = "MSCK REPAIR TABLE olmccindex"
+update_cc_index = "MSCK REPAIR TABLE olmccindex;"
 cursor.execute(update_cc_index)
 logging.info("Athena query: %s", update_cc_index)
 
-subprocess.call(f"python3 cc_lookup_seed.py s3://bucket/path seed {args.cc_dump}")
+subprocess.call(f"python3 ../python_scripts/cc_lookup_seed.py {s3_location} seed {args.cc_dump}", shell=True)
 
 create_cc_seed = f"""
-CREATE EXTERNAL TABLE IF NOT EXISTS olm.cc_seed_{args.cc_cump} (
+CREATE EXTERNAL TABLE IF NOT EXISTS olm.cc_seed (
     seed_id                     INT,
     url_surtkey                 STRING,
     url_host_tld                STRING,
@@ -41,10 +43,10 @@ CREATE EXTERNAL TABLE IF NOT EXISTS olm.cc_seed_{args.cc_cump} (
     content_mime_detected       STRING,
     content_languages           STRING)
 PARTITIONED BY (
-    crawl  STRING,
+    crawl STRING,
     subset STRING)
 STORED AS parquet
-LOCATION '{args.s3_location}/cc-seed-{args.cc_dump}/'
+LOCATION '{s3_location}/cc-seed/'
 TBLPROPERTIES (
   'has_encrypted_data'='false',
   'parquet.compression'='GZIP');
@@ -52,14 +54,14 @@ TBLPROPERTIES (
 cursor.execute(create_cc_seed)
 logging.info("Athena query: %s", create_cc_seed)
 
-load_cc_seed_partitions = f"MSCK REPAIR TABLE olm.cc_seed_{args.cc_dump};"
+load_cc_seed_partitions = f"MSCK REPAIR TABLE olm.cc_seed;"
 cursor.execute(load_cc_seed_partitions)
 logging.info("Athena query: %s", load_cc_seed_partitions)
 
 deduplicate_cc_seed = f"""
- CREATE TABLE olm.cc_seed_{args.cc_dump}_seed_dedup_url
-  WITH (external_location = '{args.s3_location}/cc-seed-{args.cc_dump}-dedup-url/',
-        partitioned_by = ARRAY['subset'],
+ CREATE TABLE olm.cc_seed_dedup_url
+  WITH (external_location = '{s3_location}/cc-seed_dedup_url/',
+        partitioned_by = ARRAY['crawl', 'subset'],
         format = 'PARQUET',
         parquet_compression = 'GZIP')
   AS
@@ -83,9 +85,10 @@ deduplicate_cc_seed = f"""
      fetch_redirect,
      content_mime_detected,
      content_languages,
+     crawl,
      subset
   FROM tmp
   WHERE row = 1
   """
- cursor.execute(deduplicate_cc_seed)
- logging.info("Athena query: %s", deduplicate_cc_seed)
+cursor.execute(deduplicate_cc_seed)
+logging.info("Athena query: %s", deduplicate_cc_seed)
